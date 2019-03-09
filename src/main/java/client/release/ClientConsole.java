@@ -1,37 +1,39 @@
-package entities;
+package client.release;
 
+import client.Client;
 import org.xml.sax.SAXException;
-import parser.impl.JaxbParser;
-import utils.ClientSender;
+import utils.message.impl.MessageXml;
+import utils.parser.impl.JaxbParser;
+import server.release.TcpServer;
+import client.clientEntities.ClientSender;
 
 import javax.xml.bind.JAXBException;
 import java.io.*;
 import java.net.Socket;
-import java.sql.SQLOutput;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Scanner;
 
 
 
-public class Client {
+public class ClientConsole implements Client {
     private Socket clientSocket = null;
     private String login = null;
     private String name = null;
     private String password = null;
-    ClientSender clientSender = null;
+    private ClientSender clientSender = null;
     private Scanner scanner = new Scanner(System.in);
     JaxbParser jaxbParser = null;
     SimpleDateFormat formatForDateNow = new SimpleDateFormat("hh:mm:ss E");
 
-    Message message = new Message();
+    MessageXml message = new MessageXml();
 
 
-    public Client() {
+    public ClientConsole() {
         BufferedReader in = null;
         PrintWriter out = null;
         try {
-            clientSocket = new Socket("localhost", Server.PORT);
+            clientSocket = new Socket("localhost", TcpServer.PORT);
             in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
             out = new PrintWriter(clientSocket.getOutputStream(), true);
             System.out.println(in.readLine());
@@ -77,7 +79,7 @@ public class Client {
             String lineBottomSeparator = "<------------------->\n";
             jaxbParser = new JaxbParser();
             StringReader stringReader = new StringReader(msg);
-            Message message = (Message) jaxbParser.getObject(stringReader, Message.class);
+            MessageXml message = (MessageXml) jaxbParser.getObject(stringReader, MessageXml.class);
             System.out.println(lineTopSeparator + message + "\n" + lineBottomSeparator);
         } catch (SAXException | JAXBException e) {
             e.printStackTrace();

@@ -1,42 +1,46 @@
-package entities;
+package server.release;
 
+import utils.message.impl.MessageXml;
 import org.apache.commons.codec.digest.DigestUtils;
-import utils.CommandList;
-import utils.Connection;
-import utils.Registration;
+import server.Server;
+import server.serverUtils.CommandList;
+import server.serverEntities.Connection;
+import server.serverEntities.Registration;
 
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.*;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class Server {
-    String login = null;
-    String password = null;
+public class TcpServer implements Server {
+    private String login = null;
+    private String password = null;
     // прослушиваемый порт
-    static final int PORT = 3443;
-    // список клиентов
-    //public static ArrayList<Connection> clients2 = new ArrayList<Connection>();
-    public static Set<Connection> clients = new HashSet<>();
-
-    // сокет клиента
-    Socket clientSocket = null;
-    // серверный сокет
-    ServerSocket serverSocket = null;
-    // ответы сервера
-    PrintWriter out = null;
-    // прием сервера
-    BufferedReader in = null;
-
-
-    Map<String, Connection> regUsers = new HashMap<>();
+    public static final int PORT = 3443;
+    // список клиентов онлайн
+    private static Set<Connection> clientsOnline;
+    // хранилище зарегистрированых пользователей
+    private static Map<String, Connection> regUsers;
+    // список команд сервера
     private static CommandList commandList;
-    private static ArrayList<String> checkCommand;
+    // сокет клиента
+    private Socket clientSocket = null;
+    // серверный сокет
+    private ServerSocket serverSocket = null;
+    // ответы сервера
+    private PrintWriter out = null;
+    // прием сервера
+    private BufferedReader in = null;
+    // запускатр потоков
+    private static ExecutorService executorService = null;
 
+    // статическая инициализация сервера
     static {
+        executorService = Executors.newCachedThreadPool();
+        clientsOnline = new HashSet<>();
+        regUsers = new HashMap<>();
         commandList = new CommandList();
         commandList.add("/i - Info");
         commandList.add("/world - Send in general chat");
@@ -44,29 +48,26 @@ public class Server {
         commandList.add("/add - Add friend");
         commandList.add("/f - Friends");
         commandList.add("/o - Online");
-        commandList.add("/h or /? - Help");
-
-        checkCommand = new ArrayList<>();
-        for(String com : commandList) {
-            checkCommand.add(com.substring(1, 2));
-        }
-
+        commandList.add("/h - Help");
     }
 
 
-    public Server() {
+    public TcpServer() {
 
         try {
             // создаём серверный сокет на определенном порту
             serverSocket = new ServerSocket(PORT);
-            System.out.println("Server started");
-            // запускаем бесконечный цикл
+            System.out.println("server running...");
+
+            // запускаем бесконечный цикл прослушивания
             while (true) {
                 // ожидание подключений
                 clientSocket = serverSocket.accept();
-                System.out.println("Client connected: " + clientSocket.getInetAddress() + " //" + clientSocket.getPort());
+                System.out.println("ClientConsole connected: " + clientSocket.getInetAddress() + " //" + clientSocket.getPort());
+                // создание потока регистрации
                 Registration registration = new Registration(clientSocket, this);
-                new Thread(registration).start();
+                // запуск потока регистрации
+                executorService.execute(registration);
             }
         }
         catch (IOException ex) {
@@ -75,6 +76,7 @@ public class Server {
         finally {
             try {
                 // закрываем подключение
+                executorService.shutdown();
                 clientSocket.close();
                 System.out.println("Сервер остановлен");
                 serverSocket.close();
@@ -85,55 +87,52 @@ public class Server {
         }
     }
 
+    // добавление пользователя в список друзей
     public void addFriendForMe(String login, Connection connection) {
         if(regUsers.containsKey(login)) {
             connection.getFriendsList().add(regUsers.get(login));
-            connection.sendMsg("Пользователь " + login + "добавлен в ваш список друзей");
+            connection.sendMsg("Пользователь " + login + " добавлен в ваш список друзей");
         } else connection.sendMsg("Пользователь не найден");
     }
 
+    // шифрование строки
     public static String encrypt(String st) {
         String md5Hex = DigestUtils.md5Hex(st);
-
         return md5Hex;
     }
 
+    // получение списка команд сервера
     public String getCommands() {
-
         return "Список доступных команд:\n" + commandList.toString();
     }
 
+    // отправка xml конкретному пользователю
     public void receiveMsgToYourself(Connection con, String msg) {
         con.sendMsg(msg);
-
     }
 
-    public void receiveXmlMsgToYourself(Connection con, Message message) {
-        con.sendXmlTo(message);
-
-    }
-
-
+    // получение пользователя из списка зарегистрированых клиентов
     public Connection getCon(String login) {
         return regUsers.get(login);
     }
 
+    // отправка сообщения всем пользователям
     public void sendMsgToAllClients(String msg) {
         for (Map.Entry<String, Connection> entry : regUsers.entrySet()) {
             entry.getValue().sendMsg(msg);
         }
     }
 
-    public void sendXmlMsgToAllClients(Message message) {
+    // отправка xml всем пользователям
+    public void sendXmlMsgToAllClients(MessageXml message) {
         for (Map.Entry<String, Connection> entry : regUsers.entrySet()) {
             entry.getValue().sendXmlTo(message);
         }
     }
 
-
-
-    public void sendXmlMsgToSpecificClients(String login, Message message, Connection connection) {
-        if(!clients.contains(regUsers.get(login))) {
+    // отравка xml конкретному пользователю
+    public void sendXmlMsgToSpecificClients(String login, MessageXml message, Connection connection) {
+        if(!clientsOnline.contains(regUsers.get(login))) {
             if(!regUsers.containsKey(login)) {
                 connection.sendMsg("Пользователь с ником " + login + " не зарегестрирован");
             } else {
@@ -145,9 +144,10 @@ public class Server {
         }
     }
 
+    // проверка авторизации
     public boolean getAuthority(String login, String password) {
         if(regUsers.get(login).getPassword().equals(encrypt(password))) {
-            clients.add(regUsers.get(login));
+            clientsOnline.add(regUsers.get(login));
             Connection.incrementClientsCount();
             System.out.println("Пользователь " + login + " зашел на сервер");
             return true;
@@ -169,66 +169,59 @@ public class Server {
     // добавление юзера
    synchronized public void addRegUser(String login, String password) {
         regUsers.put(login, new Connection(login, encrypt(password)));
-       System.out.println("Пользователь " + login + " зарегестрирован");
+        System.out.println("Пользователь " + login + " зарегестрирован");
     }
 
     // удаляем клиента из коллекции при выходе из чата
     public void removeClient(Connection client) {
-        clients.remove(client);
+        clientsOnline.remove(client);
     }
 
-    // Добавляем клиента в список онлайн
+    // добавляем клиента в список онлайн
     public static void addClient(Connection client) {
-        clients.add(client);
+        clientsOnline.add(client);
     }
 
+    // получение списка пользователей онлайн
     public String getOnlineList() {
         String online = "";
-       for(Connection con : clients) {
+       for(Connection con : clientsOnline) {
            online += con.getLogin().concat("\n");
        }
        return online;
     }
 
-    public String checkCommand(String msg) {
-        if(checkCommand.contains(msg.substring(0, 1))) {
-            return msg;
-        } else {
-            return "Неизвестная команда";
-        }
-    }
-
-    public String returnTask(String command, Connection connection) {
+    // выполнение команды
+    public void executeTask(String command, Connection connection) {
         switch (command) {
-            case "i":
-                command = this.toString();
+            case "/i":
+                connection.sendMsgToYourself(connection, this.toString());
                 break;
-            case "world":
-                command = "world";
+            case "/world":
+                connection.sendXmlMsgToAllClients();
                 break;
-            case "pm":
-                command = "pm";
+            case "/pm":
+                connection.sendXmlMsgToSpecificClients();
                 break;
-            case "add":
-                command = "add";
+            case "/add":
+                connection.addFriend();
                 break;
-            case "f":
-                command = connection.friendsList();
+            case "/f":
+                connection.sendMsgToYourself(connection, connection.friendsList());
                 break;
-            case "o":
-                command = this.getOnlineList();
+            case "/o":
+                connection.sendMsgToYourself(connection, this.getOnlineList());
                 break;
-            case "h":
-                command = this.getCommands();
+            case "/h":
+                connection.sendMsgToYourself(connection, this.getCommands());
                 break;
             default:
-                command = "Неизвестная команда";
+                connection.sendMsgToYourself(connection, "Неизвестная команда");
         }
-        return command;
     }
 
     @Override
     public String toString() {
-        return "Server:\n" + serverSocket.getInetAddress() + "//" + serverSocket.getLocalPort() + "\n";
+        return "server:\n" + serverSocket.getInetAddress() + "//" + serverSocket.getLocalPort() + "\n";
     }
 }

@@ -1,6 +1,6 @@
-import entities.Message;
+import utils.message.impl.MessageXml;
 import org.xml.sax.SAXException;
-import parser.impl.JaxbParser;
+import utils.parser.impl.JaxbParser;
 
 
 import javax.xml.bind.JAXBException;
@@ -9,7 +9,6 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 public class Launcher {
     public static void main(String[] args) throws JAXBException, SAXException, IOException, InterruptedException {
@@ -42,14 +41,14 @@ public class Launcher {
                 BufferedWriter out;
                 try {
                     ServerSocket serverSocket = new ServerSocket(7856);
-                    System.out.println("Server started");
+                    System.out.println("server started");
                     socket = serverSocket.accept();
                     System.out.println("Connected: " + socket.getInetAddress());
                     in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                     //out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
                     StringReader stringReader = new StringReader(in.readLine());
-                    Message msg = (Message) jaxbParser.getObject(stringReader, Message.class);
-                    System.out.println("Server:\n" + msg);
+                    MessageXml msg = (MessageXml) jaxbParser.getObject(stringReader, MessageXml.class);
+                    System.out.println("server:\n" + msg);
 
                 } catch (IOException | JAXBException e) {
                     e.printStackTrace();
@@ -65,7 +64,7 @@ public class Launcher {
         BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
         BufferedWriter out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
         StringWriter stringWriter = new StringWriter();
-        Message message = new Message();
+        MessageXml message = new MessageXml();
         message.setFrom("onekzy");
         message.setTo("all");
         message.setTitle("Test");
@@ -76,7 +75,7 @@ public class Launcher {
         out.newLine();
         out.flush();
         //System.out.println(in.readLine());
-        //Message msg = (Message) jaxbParser.getObject(in, Message.class);
+        //MessageXml msg = (MessageXml) jaxbParser.getObject(in, MessageXml.class);
         //Thread.sleep( 1000);
         //System.out.println(msg);
 
@@ -85,7 +84,7 @@ public class Launcher {
 
         //jaxbParser.saveObject(System.out, message);
 
-        //Message message1 = (Message) jaxbParser.getObject(file, Message.class);
+        //MessageXml message1 = (MessageXml) jaxbParser.getObject(file, MessageXml.class);
         //System.out.println(message1);
 
 

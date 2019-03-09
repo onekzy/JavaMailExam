@@ -1,4 +1,6 @@
-package entities;
+package utils.message.impl;
+
+import utils.message.Message;
 
 import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlRootElement;
@@ -6,7 +8,7 @@ import javax.xml.bind.annotation.XmlType;
 
 @XmlRootElement(name = "message")
 @XmlType(propOrder = {"from","to","title","subject","body"})
-public class Message {
+public class MessageXml implements Message {
     private String from;
     private String to;
     private String title;
@@ -65,7 +67,7 @@ public class Message {
                 + "To:" + getTo() + "\n"
                 + "Title:" + getTitle() +"\n"
                 + "Subject:" + getSubject() + "\n"
-                + "Message:" + getBody();
+                + "MessageXml:" + getBody();
         return reLine;
     }
 }

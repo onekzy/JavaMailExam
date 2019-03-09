@@ -1,6 +1,6 @@
-package utils;
+package client.clientEntities;
 
-import entities.Message;
+import utils.message.impl.MessageXml;
 
 import java.io.BufferedReader;
 import java.io.PrintWriter;
@@ -10,7 +10,7 @@ public class ClientSender implements Runnable {
     BufferedReader in = null;
     PrintWriter out = null;
     Scanner scanner = null;
-    Message xmlMsg = null;
+    MessageXml xmlMsg = null;
 
     public ClientSender(PrintWriter out, Scanner scanner) {
         this.out = out;

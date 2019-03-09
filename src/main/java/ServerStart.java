@@ -1,9 +1,8 @@
-import entities.Client;
-import entities.Server;
+import server.release.TcpServer;
 
 public class ServerStart {
     public static void main(String[] args) {
-        new Server();
+        new TcpServer();
 
     }
 }

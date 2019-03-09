@@ -1,8 +1,7 @@
-package parser.impl;
+package utils.parser.impl;
 
-import entities.Message;
 import org.xml.sax.SAXException;
-import parser.Parser;
+import utils.parser.Parser;
 
 
 import javax.xml.XMLConstants;

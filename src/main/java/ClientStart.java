@@ -1,7 +1,7 @@
-import entities.Client;
+import client.release.ClientConsole;
 
 public class ClientStart {
     public static void main(String[] args) {
-        new Client();
+        new ClientConsole();
     }
 }

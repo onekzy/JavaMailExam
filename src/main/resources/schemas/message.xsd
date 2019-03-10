@@ -5,6 +5,7 @@
 
     <xs:complexType name="message">
         <xs:sequence>
+            <xs:element name="date" type="xs:dateTime" minOccurs="0"/>
             <xs:element name="from" type="xs:string" minOccurs="0"/>
             <xs:element name="to" type="xs:string" minOccurs="0"/>
             <xs:element name="title" type="xs:string" minOccurs="0"/>

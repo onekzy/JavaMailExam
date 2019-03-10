@@ -74,12 +74,13 @@ public class ClientConsole implements Client {
 
     public void getXmlMsg(String msg) {
         try {
-            Date dateNow = new Date();
-            String lineTopSeparator = "<----" + formatForDateNow.format(dateNow) + "---->\n";
-            String lineBottomSeparator = "<------------------->\n";
             jaxbParser = new JaxbParser();
             StringReader stringReader = new StringReader(msg);
             MessageXml message = (MessageXml) jaxbParser.getObject(stringReader, MessageXml.class);
+            Date dateNow = message.getDate().toGregorianCalendar().getTime();
+            String lineTopSeparator = "<----" + formatForDateNow.format(dateNow) + "---->\n";
+            String lineBottomSeparator = "<------------------->\n";
+
             System.out.println(lineTopSeparator + message + "\n" + lineBottomSeparator);
         } catch (SAXException | JAXBException e) {
             e.printStackTrace();

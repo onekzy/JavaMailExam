@@ -1,5 +1,6 @@
 package server.release;
 
+import utils.message.Message;
 import utils.message.impl.MessageXml;
 import org.apache.commons.codec.digest.DigestUtils;
 import server.Server;
@@ -25,6 +26,8 @@ public class TcpServer implements Server {
     private static Map<String, Connection> regUsers;
     // список команд сервера
     private static CommandList commandList;
+    // переписка пользователей
+    private static List<Message> chattingHistory;
     // сокет клиента
     private Socket clientSocket = null;
     // серверный сокет
@@ -41,11 +44,14 @@ public class TcpServer implements Server {
         executorService = Executors.newCachedThreadPool();
         clientsOnline = new HashSet<>();
         regUsers = new HashMap<>();
+        chattingHistory = new ArrayList<>();
         commandList = new CommandList();
         commandList.add("/i - Info");
         commandList.add("/world - Send in general chat");
         commandList.add("/pm - Send in personal chat");
         commandList.add("/add - Add friend");
+        commandList.add("/ss - Set status");
+        commandList.add("/ch - Chatting history");
         commandList.add("/f - Friends");
         commandList.add("/o - Online");
         commandList.add("/h - Help");
@@ -57,7 +63,7 @@ public class TcpServer implements Server {
         try {
             // создаём серверный сокет на определенном порту
             serverSocket = new ServerSocket(PORT);
-            System.out.println("server running...");
+            System.out.println("Server running...");
 
             // запускаем бесконечный цикл прослушивания
             while (true) {
@@ -85,6 +91,18 @@ public class TcpServer implements Server {
                 ex.printStackTrace();
             }
         }
+    }
+
+    // получение истории переписки
+    public List<Message> getChattingHistory(Connection connection, String to) {
+        List<Message> tempArr = new ArrayList<>();
+        for(Message msg : chattingHistory) {
+            if((connection.getLogin().equals(msg.getFrom()) || connection.getLogin().equals(msg.getTo()))
+                    && (msg.getTo().equals(to) || msg.getFrom().equals(to))) {
+                tempArr.add(msg);
+            }
+        }
+        return tempArr;
     }
 
     // добавление пользователя в список друзей
@@ -149,6 +167,7 @@ public class TcpServer implements Server {
         if(regUsers.get(login).getPassword().equals(encrypt(password))) {
             clientsOnline.add(regUsers.get(login));
             Connection.incrementClientsCount();
+            regUsers.get(login).status = "Online";
             System.out.println("Пользователь " + login + " зашел на сервер");
             return true;
         } else {
@@ -166,6 +185,12 @@ public class TcpServer implements Server {
             return false;
         }
     }
+
+    // добавления сообщения переписки
+    synchronized public void addMsg(Message message) {
+        chattingHistory.add(message);
+    }
+
     // добавление юзера
    synchronized public void addRegUser(String login, String password) {
         regUsers.put(login, new Connection(login, encrypt(password)));
@@ -186,7 +211,7 @@ public class TcpServer implements Server {
     public String getOnlineList() {
         String online = "";
        for(Connection con : clientsOnline) {
-           online += con.getLogin().concat("\n");
+           online += con.getLogin().concat(" - " + con.getStatus()).concat("\n");
        }
        return online;
     }
@@ -205,6 +230,12 @@ public class TcpServer implements Server {
                 break;
             case "/add":
                 connection.addFriend();
+                break;
+            case "/ss":
+                connection.setStatus();
+                break;
+            case "/ch":
+                connection.getHistory();
                 break;
             case "/f":
                 connection.sendMsgToYourself(connection, connection.friendsList());

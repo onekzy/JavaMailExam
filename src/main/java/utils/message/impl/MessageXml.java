@@ -4,16 +4,20 @@ import utils.message.Message;
 
 import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlRootElement;
+import javax.xml.bind.annotation.XmlSchemaType;
 import javax.xml.bind.annotation.XmlType;
+import javax.xml.datatype.XMLGregorianCalendar;
+import java.util.Date;
 
 @XmlRootElement(name = "message")
-@XmlType(propOrder = {"from","to","title","subject","body"})
+@XmlType(name = "", propOrder = {"date","from","to","title","subject","body"})
 public class MessageXml implements Message {
     private String from;
     private String to;
     private String title;
     private String subject;
     private String body;
+    private XMLGregorianCalendar date;
 
     public String getTitle() {
         return title;
@@ -47,6 +51,16 @@ public class MessageXml implements Message {
         return from;
     }
 
+
+    public XMLGregorianCalendar getDate() {
+        return date;
+    }
+
+    @XmlElement
+    public void setDate(XMLGregorianCalendar value) {
+        this.date = value;
+    }
+
     @XmlElement
     public void setFrom(String from) {
         this.from = from;
@@ -67,7 +81,7 @@ public class MessageXml implements Message {
                 + "To:" + getTo() + "\n"
                 + "Title:" + getTitle() +"\n"
                 + "Subject:" + getSubject() + "\n"
-                + "MessageXml:" + getBody();
+                + "Message:" + getBody();
         return reLine;
     }
 }

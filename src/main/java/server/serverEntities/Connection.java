@@ -1,5 +1,6 @@
 package server.serverEntities;
 
+import utils.message.Message;
 import utils.message.impl.MessageXml;
 import server.release.TcpServer;
 import org.xml.sax.SAXException;
@@ -8,13 +9,15 @@ import utils.factory.MessageFactory;
 import utils.factory.ParserProvider;
 
 import javax.xml.bind.JAXBException;
+import javax.xml.datatype.DatatypeConfigurationException;
+import javax.xml.datatype.DatatypeFactory;
+import javax.xml.datatype.XMLGregorianCalendar;
 import java.io.*;
 import java.net.Socket;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Set;
+import java.util.*;
 
 public class Connection implements Runnable {
+    public String status = null;
     // экземпляр нашего сервера
     private TcpServer server = null;
     // список друзей
@@ -35,6 +38,7 @@ public class Connection implements Runnable {
 
     public Connection(String login, String password) {
         incrementClientsCount();
+        this.status = "Online";
         this.login = login;
         this.password = password;
         TcpServer.addClient(this);
@@ -92,6 +96,7 @@ public class Connection implements Runnable {
         try {
             xmlMsg = this.buildXmlToSpecificUser();
             server.sendXmlMsgToSpecificClients(xmlMsg.getTo(), xmlMsg, this);
+            server.addMsg(xmlMsg);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -137,7 +142,7 @@ public class Connection implements Runnable {
         if(!friends.isEmpty()) {
             while (iterator.hasNext()) {
                 Connection connection = iterator.next();
-                line += connection.login.concat("\n");
+                line += connection.login.concat(" - " + connection.getStatus()).concat("\n");
             }
         } else {
             line = "Нет друзей";
@@ -166,6 +171,13 @@ public class Connection implements Runnable {
 
     // первичная настройка объекта MessageXml
     public void initialMsgSetup(MessageXml message) throws IOException {
+        GregorianCalendar cal = new GregorianCalendar();
+        XMLGregorianCalendar xmlCalendar = null;
+        try {
+            xmlCalendar = DatatypeFactory.newInstance().newXMLGregorianCalendar(cal);
+        } catch (DatatypeConfigurationException e) {
+            e.printStackTrace();
+        }
         message.setFrom(login);
         server.receiveMsgToYourself(this, "Введите заголовок сообщения");
         message.setTitle(in.readLine());
@@ -173,10 +185,30 @@ public class Connection implements Runnable {
         message.setSubject(in.readLine());
         server.receiveMsgToYourself(this, "Введите сообщение");
         message.setBody(in.readLine());
+        message.setDate(xmlCalendar);
+    }
+
+    // история переписки
+    public void getHistory() {
+        server.receiveMsgToYourself(this, "Введите имя пользователя для отображения истории переписки");
+        String to = null;
+        try {
+            to = in.readLine();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        List<Message> tempArr = server.getChattingHistory(this, to);
+        if(tempArr.isEmpty()) {
+            server.receiveMsgToYourself(this, "История переписки пуста");
+        } else {
+            for (int i = 0; i < tempArr.size(); i++) {
+                this.sendXmlTo(tempArr.get(i));
+            }
+        }
     }
 
     // отправка Xml сообщения
-    public void sendXmlTo(MessageXml message) {
+    public void sendXmlTo(Message message) {
         try {
             StringWriter stringWriter = new StringWriter();
             jaxbParser = ParserProvider.newJaxbParser();
@@ -204,6 +236,7 @@ public class Connection implements Runnable {
     public void close() {
         // удаляем клиента из списка
         server.removeClient(this);
+        this.status = "Offline";
         decrementClientsCount();
         server.sendMsgToAllClients("Клиентов в чате = " + clients_count);
     }
@@ -213,6 +246,21 @@ public class Connection implements Runnable {
         in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
         out = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream()));
         stringReader = new StringReader(in.readLine());
+    }
+    public void setStatus() {
+        server.receiveMsgToYourself(this, "Введите статус:");
+        String status = null;
+        try {
+            status = in.readLine();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        this.status = status;
+        server.receiveMsgToYourself(this, "Ваш новый статус: " + this.getStatus());
+    }
+
+    public String getStatus() {
+        return status;
     }
 
     public Set<Connection> getFriendsList() {

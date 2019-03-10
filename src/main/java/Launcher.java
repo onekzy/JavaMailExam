@@ -4,14 +4,20 @@ import utils.parser.impl.JaxbParser;
 
 
 import javax.xml.bind.JAXBException;
+import javax.xml.datatype.DatatypeConfigurationException;
+import javax.xml.datatype.DatatypeFactory;
+import javax.xml.datatype.XMLGregorianCalendar;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.GregorianCalendar;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class Launcher {
-    public static void main(String[] args) throws JAXBException, SAXException, IOException, InterruptedException {
+    public static void main(String[] args) throws JAXBException, SAXException, IOException, InterruptedException, DatatypeConfigurationException {
         System.out.println("asdsadsa");
         /*
         System.out.println(System.getProperty("user.dir"));
@@ -49,6 +55,9 @@ public class Launcher {
                     StringReader stringReader = new StringReader(in.readLine());
                     MessageXml msg = (MessageXml) jaxbParser.getObject(stringReader, MessageXml.class);
                     System.out.println("server:\n" + msg);
+                    SimpleDateFormat formatForDateNow = new SimpleDateFormat("hh:mm:ss E");
+                    Date date = msg.getDate().toGregorianCalendar().getTime();
+                    System.out.println(formatForDateNow.format(date));
 
                 } catch (IOException | JAXBException e) {
                     e.printStackTrace();
@@ -65,6 +74,9 @@ public class Launcher {
         BufferedWriter out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
         StringWriter stringWriter = new StringWriter();
         MessageXml message = new MessageXml();
+        GregorianCalendar cal = new GregorianCalendar();
+        XMLGregorianCalendar xmlCalendar = DatatypeFactory.newInstance().newXMLGregorianCalendar(cal);
+        message.setDate(xmlCalendar);
         message.setFrom("onekzy");
         message.setTo("all");
         message.setTitle("Test");

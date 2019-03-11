@@ -1,5 +1,6 @@
 package server.release;
 
+import org.apache.log4j.Logger;
 import utils.message.Message;
 import utils.message.impl.MessageXml;
 import org.apache.commons.codec.digest.DigestUtils;
@@ -16,30 +17,27 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class TcpServer implements Server {
-    private String login = null;
-    private String password = null;
-    // прослушиваемый порт
-    public static final int PORT = 3443;
-    // список клиентов онлайн
+    private String prefix = "[SYSTEM:] ";
+    // initialization of logger
+    private static final Logger log = Logger.getLogger(TcpServer.class);
+    // listening port
+    private static final int PORT = 3443;
+    // clients list online
     private static Set<Connection> clientsOnline;
-    // хранилище зарегистрированых пользователей
+    // registered user store
     private static Map<String, Connection> regUsers;
-    // список команд сервера
+    // server command list
     private static CommandList commandList;
-    // переписка пользователей
+    // user correspondence history
     private static List<Message> chattingHistory;
-    // сокет клиента
+    // client socket
     private Socket clientSocket = null;
-    // серверный сокет
+    // server socket
     private ServerSocket serverSocket = null;
-    // ответы сервера
-    private PrintWriter out = null;
-    // прием сервера
-    private BufferedReader in = null;
-    // запускатр потоков
+    // threads launcher
     private static ExecutorService executorService = null;
 
-    // статическая инициализация сервера
+    // static server initialization
     static {
         executorService = Executors.newCachedThreadPool();
         clientsOnline = new HashSet<>();
@@ -55,45 +53,46 @@ public class TcpServer implements Server {
         commandList.add("/f - Friends");
         commandList.add("/o - Online");
         commandList.add("/h - Help");
+        commandList.add("/exit - Leave chat");
     }
 
 
     public TcpServer() {
 
         try {
-            // создаём серверный сокет на определенном порту
+            // create server socket on a certain port
             serverSocket = new ServerSocket(PORT);
+            log.info("Server running...");
             System.out.println("Server running...");
-
-            // запускаем бесконечный цикл прослушивания
+            // run an endless listening loop
             while (true) {
-                // ожидание подключений
+                // waiting for connections
                 clientSocket = serverSocket.accept();
-                System.out.println("ClientConsole connected: " + clientSocket.getInetAddress() + " //" + clientSocket.getPort());
-                // создание потока регистрации
+                log.info("Client connected: " + clientSocket.getInetAddress() + " //" + clientSocket.getPort());
+                // creating a thread registration instance
                 Registration registration = new Registration(clientSocket, this);
-                // запуск потока регистрации
+                // start registration thread
                 executorService.execute(registration);
             }
         }
         catch (IOException ex) {
-            ex.printStackTrace();
+            log.error("Server error", ex);
         }
         finally {
+            executorService.shutdownNow();
             try {
                 // закрываем подключение
-                executorService.shutdown();
                 clientSocket.close();
-                System.out.println("Сервер остановлен");
+                log.info("Server stopped");
                 serverSocket.close();
             }
             catch (IOException ex) {
-                ex.printStackTrace();
+                log.error("Server stop error", ex);
             }
         }
     }
 
-    // получение истории переписки
+    // getting chatting history
     public List<Message> getChattingHistory(Connection connection, String to) {
         List<Message> tempArr = new ArrayList<>();
         for(Message msg : chattingHistory) {
@@ -105,79 +104,81 @@ public class TcpServer implements Server {
         return tempArr;
     }
 
-    // добавление пользователя в список друзей
+    // add user to friend list
     public void addFriendForMe(String login, Connection connection) {
-        if(regUsers.containsKey(login)) {
+        if(connection.getLogin().equals(login)) {
+            connection.sendMsg(prefix + "You can’t add yourself");
+        } else if(regUsers.containsKey(login)) {
             connection.getFriendsList().add(regUsers.get(login));
-            connection.sendMsg("Пользователь " + login + " добавлен в ваш список друзей");
-        } else connection.sendMsg("Пользователь не найден");
+            connection.sendMsg(prefix + "User named " + login.toUpperCase() + " has been added to your friends list");
+        } else connection.sendMsg(prefix + "User not found");
     }
 
-    // шифрование строки
+    // string encryption
     public static String encrypt(String st) {
         String md5Hex = DigestUtils.md5Hex(st);
         return md5Hex;
     }
 
-    // получение списка команд сервера
+    // get a list of server commands
     public String getCommands() {
-        return "Список доступных команд:\n" + commandList.toString();
+        return "List of available commands:\n" + commandList.toString();
     }
 
-    // отправка xml конкретному пользователю
+    // sending xml to a specific user
     public void receiveMsgToYourself(Connection con, String msg) {
         con.sendMsg(msg);
     }
 
-    // получение пользователя из списка зарегистрированых клиентов
+    // get user from the list of registered clients
     public Connection getCon(String login) {
         return regUsers.get(login);
     }
 
-    // отправка сообщения всем пользователям
+    // send message to all users
     public void sendMsgToAllClients(String msg) {
         for (Map.Entry<String, Connection> entry : regUsers.entrySet()) {
             entry.getValue().sendMsg(msg);
         }
     }
 
-    // отправка xml всем пользователям
+    // send xml to all users
     public void sendXmlMsgToAllClients(MessageXml message) {
         for (Map.Entry<String, Connection> entry : regUsers.entrySet()) {
             entry.getValue().sendXmlTo(message);
         }
     }
 
-    // отравка xml конкретному пользователю
+    // send xml to a specific user
     public void sendXmlMsgToSpecificClients(String login, MessageXml message, Connection connection) {
         if(!clientsOnline.contains(regUsers.get(login))) {
             if(!regUsers.containsKey(login)) {
-                connection.sendMsg("Пользователь с ником " + login + " не зарегестрирован");
+                connection.sendMsg(prefix + "User named " + login.toUpperCase() + " not registered");
             } else {
-                connection.sendMsg("Пользователь с ником " + login + " не онлайн");
+                connection.sendMsg(prefix + "User named " + login.toUpperCase() + " is not online");
             }
         } else {
             regUsers.get(login).sendXmlTo(message);
-            connection.sendMsg("Сообщение отправлено");
+            connection.sendMsg(prefix + "Message sent");
         }
     }
 
-    // проверка авторизации
+    // authorization check
     public boolean getAuthority(String login, String password) {
         if(regUsers.get(login).getPassword().equals(encrypt(password))) {
             clientsOnline.add(regUsers.get(login));
             Connection.incrementClientsCount();
             regUsers.get(login).status = "Online";
-            System.out.println("Пользователь " + login + " зашел на сервер");
+            log.info("User " + login.toUpperCase() + " went to the server");
             return true;
         } else {
-            System.out.println("Неверный пароль");
+            log.info(login.toUpperCase() + " :Wrong password");
             return false;
 
         }
     }
 
-    // проверка регистрации
+    // registration check
     public boolean checkReg(String login) {
         if (regUsers.get(login) != null) {
             return true;
@@ -186,28 +187,28 @@ public class TcpServer implements Server {
         }
     }
 
-    // добавления сообщения переписки
-    synchronized public void addMsg(Message message) {
+    // add correspondence messages
+    public void addMsg(Message message) {
         chattingHistory.add(message);
     }
 
-    // добавление юзера
-   synchronized public void addRegUser(String login, String password) {
+    // add user
+    public synchronized void addRegUser(String login, String password) {
         regUsers.put(login, new Connection(login, encrypt(password)));
-        System.out.println("Пользователь " + login + " зарегестрирован");
+        log.info("User " + login.toUpperCase() + " is registered");
     }
 
-    // удаляем клиента из коллекции при выходе из чата
+    // remove client from collection when leaving the chat
     public void removeClient(Connection client) {
         clientsOnline.remove(client);
     }
 
-    // добавляем клиента в список онлайн
+    // add client to online list
     public static void addClient(Connection client) {
         clientsOnline.add(client);
     }
 
-    // получение списка пользователей онлайн
+    // get list online
     public String getOnlineList() {
         String online = "";
        for(Connection con : clientsOnline) {
@@ -216,7 +217,11 @@ public class TcpServer implements Server {
        return online;
     }
 
-    // выполнение команды
+    public String getPrefix() {
+        return prefix;
+    }
+
+    // command execution
     public void executeTask(String command, Connection connection) {
         switch (command) {
             case "/i":
@@ -246,13 +251,17 @@ public class TcpServer implements Server {
             case "/h":
                 connection.sendMsgToYourself(connection, this.getCommands());
                 break;
+            case "/exit":
+                connection.close();
+                break;
             default:
-                connection.sendMsgToYourself(connection, "Неизвестная команда");
+                connection.sendMsgToYourself(connection, prefix + "Unknown command");
         }
     }
 
+    // server information
     @Override
     public String toString() {
-        return "server:\n" + serverSocket.getInetAddress() + "//" + serverSocket.getLocalPort() + "\n";
+        return prefix + "Server:\n" + serverSocket.getInetAddress() + "//" + serverSocket.getLocalPort() + "\n";
     }
 }

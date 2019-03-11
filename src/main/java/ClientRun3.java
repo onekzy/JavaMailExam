@@ -1,9 +1,7 @@
 import client.release.ClientConsole;
 
-public class ClientStart2 {
-
+public class ClientRun3 {
     public static void main(String[] args) {
         new ClientConsole();
     }
-
 }

@@ -1,5 +1,6 @@
 package server.serverEntities;
 
+import org.apache.log4j.Logger;
 import utils.message.Message;
 import utils.message.impl.MessageXml;
 import server.release.TcpServer;
@@ -17,14 +18,19 @@ import java.net.Socket;
 import java.util.*;
 
 public class Connection implements Runnable {
-    public String status = null;
-    // экземпляр нашего сервера
+    // initialization of logger
+    private static final Logger log = Logger.getLogger(Connection.class);
+    // user status
+    public String status;
+    // server prefix
+    String prefix;
+    // server instance
     private TcpServer server = null;
-    // список друзей
+    // friend list
     private Set<Connection> friends = new HashSet<>();
-    // клиентский сокет
+    // client socket
     private Socket clientSocket = null;
-    // количество клиентов онлайн
+    // number of clients online
     private static volatile int clients_count = 0;
 
     String login, password;
@@ -32,6 +38,7 @@ public class Connection implements Runnable {
     BufferedReader in = null;
     BufferedWriter out = null;
     StringReader stringReader = null;
+    // parser xml messages
     JaxbParser jaxbParser = null;
 
 
@@ -46,96 +53,95 @@ public class Connection implements Runnable {
 
     public void run() {
         try {
-            // сервер отправляет приветственное сообщение
+            // the server sends a welcome message
             while (true) {
-                sendMsgToAll("Новый участник вошёл в чат!");
-                sendMsgToAll("Клиентов в чате = " + clients_count + "\n");
+                sendMsgToAll(prefix + "New member entered the chat!");
+                sendMsgToAll(prefix + "Clients in chat = " + clients_count + "\n");
                 sendMsgToYourself(this, server.getCommands());
                 break;
             }
 
-            // цикл обработки входящих сообщений
+            // input messages loop
             while (true) {
                 String line = in.readLine();
                 if(this.isNotEmptyLine(line)) {
                     if(this.isCommandLine(line)) {
-                        // выполнение команды
+                        // command execution
                         executeTask(line, this);
                     } else {
-                        sendMsgToYourself(this, "Команда должна начинаться с '/'");
-                }
+                        sendMsgToYourself(this,  prefix + "The command must start with '/'");
+                    }
             }
         }
-    }
-        catch (IOException ex) {
-            ex.printStackTrace();
+    } catch (IOException ex) {
+            log.error("Message reception error", ex);
         }
         finally {
             this.close();
         }
     }
 
-    //выполнение команды на сервере
+    //command execution on the server
     public void executeTask(String command, Connection connection) {
         server.executeTask(command, connection);
     }
 
-    // добавление пользователя в список друзей
+    // add user to friend list
     public void addFriend() {
-        server.receiveMsgToYourself(this, "Введите логин пользователя, которого ходить добавить в список друзей");
+        server.receiveMsgToYourself(this, prefix + "Enter the login name of the user who will be added to the friend list");
         try {
             server.addFriendForMe(in.readLine(), this);
-        } catch (IOException e) {
-            e.printStackTrace();
+        } catch (IOException ex) {
+            log.error("Message reception error", ex);
         }
     }
 
-    // отправка xml сообщения конкретному пользователю
+    // send xml messages to a specific user
     public void sendXmlMsgToSpecificClients() {
-        MessageXml xmlMsg = null;
+        MessageXml xmlMsg;
         try {
             xmlMsg = this.buildXmlToSpecificUser();
             server.sendXmlMsgToSpecificClients(xmlMsg.getTo(), xmlMsg, this);
             server.addMsg(xmlMsg);
-        } catch (IOException e) {
-            e.printStackTrace();
+        } catch (IOException ex) {
+            log.error("Receive error while creating message", ex);
         }
 
     }
 
-    // отправка xml сообщения всем пользователям
+    // send xml messages to all users
     public void sendXmlMsgToAllClients() {
-        MessageXml xmlMsg = null;
+        MessageXml xmlMsg;
         try {
             xmlMsg = this.buildXmlToAll();
             server.sendXmlMsgToAllClients(xmlMsg);
-        } catch (IOException e) {
-            e.printStackTrace();
+        } catch (IOException ex) {
+            log.error("Receive error while creating message", ex);
         }
 
     }
 
-    // проверка является ли строка командой
+    // check if the string is a command
     public boolean isCommandLine(String line) {
         return String.valueOf(line.charAt(0)).equals("/");
     }
 
-    // проверка не пустая ли строка
+    // check if the string is not empty
     public boolean isNotEmptyLine(String line) {
         return line != null && !line.equals("") && !line.equals(" ") && !line.equals("/");
     }
 
-    // отправка строкового сообщени всем пользователям
+    // send a string message to all users
     public void sendMsgToAll(String msg) {
         server.sendMsgToAllClients(msg);
     }
 
-    // отправка сообщения конкретному пользователю (ex. вызывающему Connection)
+    // sending a message to a specific user
     public void sendMsgToYourself(Connection connection, String msg) {
         server.receiveMsgToYourself(connection, msg);
     }
 
-    // получаем список друзей
+    // get a friend list
     public String friendsList(){
         String line = "";
         Iterator<Connection> iterator = friends.iterator();
@@ -145,13 +151,13 @@ public class Connection implements Runnable {
                 line += connection.login.concat(" - " + connection.getStatus()).concat("\n");
             }
         } else {
-            line = "Нет друзей";
+            line = prefix + "No friends";
         }
             return line;
 
     }
 
-    // создание объекта MessageXml для отправки всем пользователям
+    // creating a MessageXml object to send to all users
     public MessageXml buildXmlToAll() throws IOException {
         MessageXml message = MessageFactory.newXmlMessage();
         message.setTo("All");
@@ -160,46 +166,46 @@ public class Connection implements Runnable {
 
     }
 
-    // создание объекта MessageXml для отправки конкретному пользователю
+    // creating a MessageXml object to send to a specific user
     public MessageXml buildXmlToSpecificUser() throws IOException {
         MessageXml message = MessageFactory.newXmlMessage();
-        server.receiveMsgToYourself(this, "Введите адресата сообщения");
+        server.receiveMsgToYourself(this, prefix + "Enter the recipient of the message");
         message.setTo(in.readLine());
         initialMsgSetup(message);
         return message;
     }
 
-    // первичная настройка объекта MessageXml
+    // primary setup of the MessageXml object
     public void initialMsgSetup(MessageXml message) throws IOException {
         GregorianCalendar cal = new GregorianCalendar();
         XMLGregorianCalendar xmlCalendar = null;
         try {
             xmlCalendar = DatatypeFactory.newInstance().newXMLGregorianCalendar(cal);
-        } catch (DatatypeConfigurationException e) {
-            e.printStackTrace();
+        } catch (DatatypeConfigurationException ex) {
+            log.error("Error getting current time", ex);
         }
         message.setFrom(login);
-        server.receiveMsgToYourself(this, "Введите заголовок сообщения");
+        server.receiveMsgToYourself(this, prefix + "Enter a message title");
         message.setTitle(in.readLine());
-        server.receiveMsgToYourself(this, "Введите тему сообщения");
+        server.receiveMsgToYourself(this, prefix + "Enter a message subject");
         message.setSubject(in.readLine());
-        server.receiveMsgToYourself(this, "Введите сообщение");
+        server.receiveMsgToYourself(this, prefix + "Enter a message");
         message.setBody(in.readLine());
         message.setDate(xmlCalendar);
     }
 
-    // история переписки
+    // get a chatting history
     public void getHistory() {
-        server.receiveMsgToYourself(this, "Введите имя пользователя для отображения истории переписки");
+        server.receiveMsgToYourself(this, prefix + "Enter the name of the user with whom you want to see the chatting history");
         String to = null;
         try {
             to = in.readLine();
-        } catch (IOException e) {
-            e.printStackTrace();
+        } catch (IOException ex) {
+            log.error("Message reception error", ex);
         }
         List<Message> tempArr = server.getChattingHistory(this, to);
         if(tempArr.isEmpty()) {
-            server.receiveMsgToYourself(this, "История переписки пуста");
+            server.receiveMsgToYourself(this,  prefix + "Chatting history is empty");
         } else {
             for (int i = 0; i < tempArr.size(); i++) {
                 this.sendXmlTo(tempArr.get(i));
@@ -207,7 +213,7 @@ public class Connection implements Runnable {
         }
     }
 
-    // отправка Xml сообщения
+    // send xml message
     public void sendXmlTo(Message message) {
         try {
             StringWriter stringWriter = new StringWriter();
@@ -216,47 +222,57 @@ public class Connection implements Runnable {
             out.write(stringWriter.toString());
             out.newLine();
             out.flush();
-        } catch (JAXBException | IOException | SAXException e) {
-            e.printStackTrace();
+        } catch (IOException ex) {
+            log.error("Error sending message", ex);
+        } catch (JAXBException ex) {
+            log.error("Marshalling error", ex);
+        } catch (SAXException ex) {
+            log.error("Error parser initialization", ex);
         }
     }
 
-    // отправка строкового сообщения
+    // send a string message
     public void sendMsg(String msg) {
         try {
             out.write(msg + "\r\n");
             out.flush();
-        } catch (IOException e) {
-            e.printStackTrace();
+        } catch (IOException ex) {
+            log.error("Error sending message", ex);
         }
 
     }
 
-    // клиент выходит из чата
+    // client exits chat
     public void close() {
-        // удаляем клиента из списка
+        // delete the client from the list online
         server.removeClient(this);
         this.status = "Offline";
         decrementClientsCount();
-        server.sendMsgToAllClients("Клиентов в чате = " + clients_count);
+        server.sendMsgToAllClients(prefix + "Clients in chat = " + clients_count);
+        try {
+            clientSocket.close();
+        } catch (IOException ex) {
+            log.error("Connection close error", ex);
+        }
     }
 
-    // первичная настройка соединения
+    // primary connection setup
     public void onSetup() throws IOException {
         in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
         out = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream()));
         stringReader = new StringReader(in.readLine());
+        prefix = server.getPrefix();
     }
     public void setStatus() {
-        server.receiveMsgToYourself(this, "Введите статус:");
+        server.receiveMsgToYourself(this, prefix + "Enter status:");
         String status = null;
         try {
             status = in.readLine();
-        } catch (IOException e) {
-            e.printStackTrace();
+        } catch (IOException ex) {
+            log.error("Message reception error", ex);
         }
         this.status = status;
-        server.receiveMsgToYourself(this, "Ваш новый статус: " + this.getStatus());
+        server.receiveMsgToYourself(this, prefix + "Your new status: " + this.getStatus());
     }
 
     public String getStatus() {
@@ -281,10 +297,12 @@ public class Connection implements Runnable {
         this.clientSocket = clientSocket;
     }
 
+    // увеличить число клиентов онлайн
     public static void incrementClientsCount() {
         clients_count++;
     }
 
+    // уменьшить число клиентов онлайн
     public static void decrementClientsCount() {
         if(clients_count >= 1)
             clients_count--;

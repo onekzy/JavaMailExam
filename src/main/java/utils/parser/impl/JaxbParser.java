@@ -24,8 +24,6 @@ public class JaxbParser implements Parser {
     public JaxbParser() throws SAXException {
     }
 
-
-
     public Object getObject(Reader in, Class c) throws JAXBException {
 
         JAXBContext context = JAXBContext.newInstance(c);
@@ -35,8 +33,6 @@ public class JaxbParser implements Parser {
 
         return object;
     }
-
-
 
     public void saveObject(File file, Object o) throws JAXBException {
 

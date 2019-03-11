@@ -1,16 +1,12 @@
 package client.clientEntities;
 
-import utils.message.impl.MessageXml;
-
-import java.io.BufferedReader;
 import java.io.PrintWriter;
 import java.util.Scanner;
 
 public class ClientSender implements Runnable {
-    BufferedReader in = null;
-    PrintWriter out = null;
-    Scanner scanner = null;
-    MessageXml xmlMsg = null;
+    PrintWriter out;
+    // console input
+    Scanner scanner;
 
     public ClientSender(PrintWriter out, Scanner scanner) {
         this.out = out;
@@ -20,23 +16,18 @@ public class ClientSender implements Runnable {
 
     @Override
     public void run() {
+
+        // send messages to server loop
         while (true) {
             String outMsg = scanner.nextLine();
             sendMsg(outMsg);
         }
     }
 
+    // send messages to the server
     public void sendMsg(String msg) {
         out.println(msg);
         out.flush();
-    }
-
-    public void sendXmlMsgToAll() {
-
-    }
-
-    public void sendXmlMsgToSpecificUser() {
-
     }
 
 }

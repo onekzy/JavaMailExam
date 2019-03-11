@@ -1,5 +1,6 @@
 package server.serverEntities;
 
+import org.apache.log4j.Logger;
 import server.release.TcpServer;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -8,81 +9,95 @@ import java.io.PrintWriter;
 import java.net.Socket;
 
 public class Registration implements Runnable {
-    String login;
-    String password;
-    String confirmPassword;
-    Socket clientSocket;
-    TcpServer server;
-    // флаг цикла проверки регистрации/входа
-    boolean regFlag = false;
+    // server prefix
+    private String prefix;
+    // initialization of logger
+    private static final Logger log = Logger.getLogger(Registration.class);
+    private String login;
+    private String password;
+    private String confirmPassword;
+    private Socket clientSocket;
+    // server instance
+    private TcpServer server;
+    // reg/login check loop flag
+    private boolean regFlag = false;
 
-    PrintWriter out;
-    BufferedReader in;
+    private PrintWriter out;
+    private BufferedReader in;
 
     public Registration(Socket clientSocket, TcpServer server) {
         this.clientSocket = clientSocket;
         this.server = server;
+        prefix = server.getPrefix();
     }
 
     @Override
     public void run() {
         try {
 
-            // инициализация потоков общения
+            // initialization of i/o streams
             out = new PrintWriter(clientSocket.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 
-            // регистрация или аутентификация
+            // registration or authentication
             do {
                 this.getAccept();
             } while (!regFlag);
 
-            // создание и настройка соединения
+            // create and configure connections
             Connection connection = server.getCon(login);
             connection.setServer(this.server);
             connection.setClientSocket(this.clientSocket);
+            // setup the i/o streams for the connection
             connection.onSetup();
 
-            // запуск потока соединения
+            // start connection thread
             new Thread(connection).start();
 
-        } catch (Exception ex) {
-            ex.printStackTrace();
+        } catch (IOException ex) {
+            log.error("Message reception error", ex);
         }
     }
 
-    // вход в чат, выполнение регистрации или входа
+    // enter chat, perform registration or login
     public void getAccept() throws IOException {
-        out.println("Введите логин:");
-        login = in.readLine();
-        out.println("Введите пароль:");
-        password = in.readLine();
+        out.println(prefix + "Enter login:");
+        login = in.readLine().trim();
+        out.println(prefix + "Enter password:");
+        password = in.readLine().trim();
 
+        // if user is not registered
         if(!server.checkReg(login)) {
+            // registration
             doRegistration(login, password);
+            // if already registered
         } else if (server.getAuthority(login, password)) {
+            // authenticate
             doAuthentication(login);
         } else {
-            out.println("Неверный пароль");
+            // incorrect input
+            out.println(prefix + "Wrong password");
         }
     }
 
-    // проверка регистрации
+    // registration check
     public void doRegistration(String login, String password) throws IOException {
-        out.println("Подтвердите пароль:");
+        out.println(prefix + "Confirm the password:");
         confirmPassword = in.readLine();
         if(password.equals(confirmPassword)) {
             server.addRegUser(login, password);
-            out.println("Вы, " + login + ", зарегистрированы. Нажмите клавишу 'Enter' для входа в чат");
+            out.println(prefix = "You, " + login + ", are registered. Press 'Enter' to enter chat");
+            // registration has passed
             regFlag = true;
         } else {
-            out.println("Пароли не совпадают");
+            out.println(prefix + "Passwords do not match");
         }
     }
 
-    // проверка аутентификации
+    // authentication check
     public void doAuthentication(String login) {
-        out.println("Вы, " + login + ", вошли. Нажмите клавишу 'Enter' для входа в чат");
+        out.println(prefix + "You, " + login + ", are joined. Press 'Enter' to enter chat");
+        // authentication has passed
         regFlag = true;
     }
 }

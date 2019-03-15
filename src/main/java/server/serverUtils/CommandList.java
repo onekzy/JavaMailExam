@@ -9,7 +9,7 @@ public class CommandList extends ArrayList<String> {
     public String toString() {
         String returnString = "";
         for(String string : this) {
-            returnString += string.concat("\n");
+            returnString += string.concat("***");
         }
 
         return returnString;

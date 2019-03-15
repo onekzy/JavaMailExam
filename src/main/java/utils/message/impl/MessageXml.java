@@ -1,87 +1,144 @@
+
 package utils.message.impl;
 
 import utils.message.Message;
 
-import javax.xml.bind.annotation.XmlElement;
-import javax.xml.bind.annotation.XmlRootElement;
-import javax.xml.bind.annotation.XmlSchemaType;
-import javax.xml.bind.annotation.XmlType;
+import javax.xml.bind.annotation.*;
 import javax.xml.datatype.XMLGregorianCalendar;
-import java.util.Date;
 
+
+/**
+ * <p>Java class for message complex type.
+ * 
+ * <p>The following schema fragment specifies the expected content contained within this class.
+ * 
+ * <pre>
+ * &lt;complexType name="message">
+ *   &lt;complexContent>
+ *     &lt;restriction base="{http://www.w3.org/2001/XMLSchema}anyType">
+ *       &lt;sequence>
+ *         &lt;element name="date" type="{http://www.w3.org/2001/XMLSchema}dateTime" minOccurs="0"/>
+ *         &lt;element name="from" type="{http://www.w3.org/2001/XMLSchema}string" minOccurs="0"/>
+ *         &lt;element name="to" type="{http://www.w3.org/2001/XMLSchema}string" minOccurs="0"/>
+ *         &lt;element name="body" type="{http://www.w3.org/2001/XMLSchema}string" minOccurs="0"/>
+ *       &lt;/sequence>
+ *     &lt;/restriction>
+ *   &lt;/complexContent>
+ * &lt;/complexType>
+ * </pre>
+ * 
+ * 
+ */
+@XmlAccessorType(XmlAccessType.FIELD)
+@XmlType(name = "message", propOrder = {
+    "date",
+    "from",
+    "to",
+    "body"
+})
 @XmlRootElement(name = "message")
-@XmlType(name = "", propOrder = {"date","from","to","title","subject","body"})
 public class MessageXml implements Message {
-    private String from;
-    private String to;
-    private String title;
-    private String subject;
-    private String body;
-    private XMLGregorianCalendar date;
 
-    public String getTitle() {
-        return title;
-    }
+    @XmlSchemaType(name = "dateTime")
+    protected XMLGregorianCalendar date;
+    protected String from;
+    protected String to;
+    protected String body;
 
-    @XmlElement
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public String getSubject() {
-        return subject;
-    }
-
-    @XmlElement
-    public void setSubject(String subject) {
-        this.subject = subject;
-    }
-
-    public String getBody() {
-        return body;
-    }
-
-    @XmlElement
-    public void setBody(String body) {
-        this.body = body;
-    }
-
-
-    public String getFrom() {
-        return from;
-    }
-
-
+    /**
+     * Gets the value of the date property.
+     * 
+     * @return
+     *     possible object is
+     *     {@link XMLGregorianCalendar }
+     *     
+     */
     public XMLGregorianCalendar getDate() {
         return date;
     }
 
-    @XmlElement
+    /**
+     * Sets the value of the date property.
+     * 
+     * @param value
+     *     allowed object is
+     *     {@link XMLGregorianCalendar }
+     *     
+     */
     public void setDate(XMLGregorianCalendar value) {
         this.date = value;
     }
 
-    @XmlElement
-    public void setFrom(String from) {
-        this.from = from;
+    /**
+     * Gets the value of the from property.
+     * 
+     * @return
+     *     possible object is
+     *     {@link String }
+     *     
+     */
+    public String getFrom() {
+        return from;
     }
 
+    /**
+     * Sets the value of the from property.
+     * 
+     * @param value
+     *     allowed object is
+     *     {@link String }
+     *     
+     */
+    public void setFrom(String value) {
+        this.from = value;
+    }
+
+    /**
+     * Gets the value of the to property.
+     * 
+     * @return
+     *     possible object is
+     *     {@link String }
+     *     
+     */
     public String getTo() {
         return to;
     }
 
-    @XmlElement
-    public void setTo(String to) {
-        this.to = to;
+    /**
+     * Sets the value of the to property.
+     * 
+     * @param value
+     *     allowed object is
+     *     {@link String }
+     *     
+     */
+    public void setTo(String value) {
+        this.to = value;
     }
 
-    @Override
-    public String toString() {
-        String reLine = "From:" + getFrom()+ "\n"
-                + "To:" + getTo() + "\n"
-                + "Title:" + getTitle() +"\n"
-                + "Subject:" + getSubject() + "\n"
-                + "Message:" + getBody();
-        return reLine;
+    /**
+     * Gets the value of the body property.
+     * 
+     * @return
+     *     possible object is
+     *     {@link String }
+     *     
+     */
+    public String getBody() {
+        return body;
     }
+
+    /**
+     * Sets the value of the body property.
+     * 
+     * @param value
+     *     allowed object is
+     *     {@link String }
+     *     
+     */
+    public void setBody(String value) {
+        this.body = value;
+    }
+
 }

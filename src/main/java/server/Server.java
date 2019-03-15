@@ -1,7 +1,6 @@
 package server;
 
 import server.serverEntities.Connection;
-import utils.message.impl.MessageXml;
 
 public interface Server {
     void removeClient(Connection client);

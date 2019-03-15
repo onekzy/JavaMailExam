@@ -2,9 +2,11 @@ package server.serverEntities;
 
 import org.apache.log4j.Logger;
 import utils.message.Message;
-import utils.message.impl.MessageXml;
 import server.release.TcpServer;
 import org.xml.sax.SAXException;
+import utils.message.impl.Command;
+import utils.message.impl.Details;
+import utils.message.impl.MessageXml;
 import utils.parser.impl.JaxbParser;
 import utils.factory.MessageFactory;
 import utils.factory.ParserProvider;
@@ -55,23 +57,22 @@ public class Connection implements Runnable {
         try {
             // the server sends a welcome message
             while (true) {
-                sendMsgToAll(prefix + "New member entered the chat!");
-                sendMsgToAll(prefix + "Clients in chat = " + clients_count + "\n");
-                sendMsgToYourself(this, server.getCommands());
+                sendMsgToAll(getSystemXml("New member entered the chat!"));
+                sendMsgToAll(getSystemXml("Clients in chat = " + clients_count));
+                sendMsgToYourself(this, getSystemXml(server.getCommands()));
                 break;
             }
 
-            // input messages loop
             while (true) {
                 String line = in.readLine();
-                if(this.isNotEmptyLine(line)) {
-                    if(this.isCommandLine(line)) {
-                        // command execution
-                        executeTask(line, this);
-                    } else {
-                        sendMsgToYourself(this,  prefix + "The command must start with '/'");
-                    }
-            }
+                Command command = parseMsg(line);
+                if(command.getCode() == 1) {
+                    server.sendXmlMsgToAllClients(command);
+                } else if(command.getCode() == 000) {
+                    sendMsgToYourself(this, getSystemXml("Unknown command"));
+                } else {
+                    server.executeTask(command, this);
+                }
         }
     } catch (IOException ex) {
             log.error("Message reception error", ex);
@@ -81,55 +82,56 @@ public class Connection implements Runnable {
         }
     }
 
-    //command execution on the server
-    public void executeTask(String command, Connection connection) {
-        server.executeTask(command, connection);
+
+    // send xml message
+    public void sendXmlTo(Command command) {
+        try {
+            StringWriter stringWriter = new StringWriter();
+            jaxbParser = ParserProvider.newJaxbParser();
+            jaxbParser.saveObject(stringWriter, command);
+            out.write(stringWriter.toString());
+            out.newLine();
+            out.flush();
+        } catch (IOException ex) {
+            log.error("Error sending message", ex);
+        } catch (JAXBException ex) {
+            log.error("Marshalling error", ex);
+        } catch (SAXException ex) {
+            log.error("Error parser initialization", ex);
+        }
+    }
+
+    public String getSystemXml(String message) {
+        return server.getSystemXml(message);
+    }
+
+    public Command parseMsg(String raw) {
+        return server.parseMsg(raw);
+    }
+
+
+    public void sendMsg(String string) {
+        try {
+            out.write(string);
+            out.newLine();
+            out.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
     }
 
     // add user to friend list
     public void addFriend() {
-        server.receiveMsgToYourself(this, prefix + "Enter the login name of the user who will be added to the friend list");
+        sendMsgToYourself(this, getSystemXml("Enter the login name of the user who will be added to the friend list"));
         try {
-            server.addFriendForMe(in.readLine(), this);
+            server.addFriendForMe(server.parseMsgBody(in.readLine()), this);
         } catch (IOException ex) {
             log.error("Message reception error", ex);
         }
     }
 
-    // send xml messages to a specific user
-    public void sendXmlMsgToSpecificClients() {
-        MessageXml xmlMsg;
-        try {
-            xmlMsg = this.buildXmlToSpecificUser();
-            server.sendXmlMsgToSpecificClients(xmlMsg.getTo(), xmlMsg, this);
-            server.addMsg(xmlMsg);
-        } catch (IOException ex) {
-            log.error("Receive error while creating message", ex);
-        }
 
-    }
-
-    // send xml messages to all users
-    public void sendXmlMsgToAllClients() {
-        MessageXml xmlMsg;
-        try {
-            xmlMsg = this.buildXmlToAll();
-            server.sendXmlMsgToAllClients(xmlMsg);
-        } catch (IOException ex) {
-            log.error("Receive error while creating message", ex);
-        }
-
-    }
-
-    // check if the string is a command
-    public boolean isCommandLine(String line) {
-        return String.valueOf(line.charAt(0)).equals("/");
-    }
-
-    // check if the string is not empty
-    public boolean isNotEmptyLine(String line) {
-        return line != null && !line.equals("") && !line.equals(" ") && !line.equals("/");
-    }
 
     // send a string message to all users
     public void sendMsgToAll(String msg) {
@@ -148,64 +150,28 @@ public class Connection implements Runnable {
         if(!friends.isEmpty()) {
             while (iterator.hasNext()) {
                 Connection connection = iterator.next();
-                line += connection.login.concat(" - " + connection.getStatus()).concat("\n");
+                line += connection.login.concat(" - " + connection.getStatus()).concat("***");
             }
         } else {
-            line = prefix + "No friends";
+            line = "No friends";
         }
             return line;
 
     }
 
-    // creating a MessageXml object to send to all users
-    public MessageXml buildXmlToAll() throws IOException {
-        MessageXml message = MessageFactory.newXmlMessage();
-        message.setTo("All");
-        initialMsgSetup(message);
-        return message;
-
-    }
-
-    // creating a MessageXml object to send to a specific user
-    public MessageXml buildXmlToSpecificUser() throws IOException {
-        MessageXml message = MessageFactory.newXmlMessage();
-        server.receiveMsgToYourself(this, prefix + "Enter the recipient of the message");
-        message.setTo(in.readLine());
-        initialMsgSetup(message);
-        return message;
-    }
-
-    // primary setup of the MessageXml object
-    public void initialMsgSetup(MessageXml message) throws IOException {
-        GregorianCalendar cal = new GregorianCalendar();
-        XMLGregorianCalendar xmlCalendar = null;
-        try {
-            xmlCalendar = DatatypeFactory.newInstance().newXMLGregorianCalendar(cal);
-        } catch (DatatypeConfigurationException ex) {
-            log.error("Error getting current time", ex);
-        }
-        message.setFrom(login);
-        server.receiveMsgToYourself(this, prefix + "Enter a message title");
-        message.setTitle(in.readLine());
-        server.receiveMsgToYourself(this, prefix + "Enter a message subject");
-        message.setSubject(in.readLine());
-        server.receiveMsgToYourself(this, prefix + "Enter a message");
-        message.setBody(in.readLine());
-        message.setDate(xmlCalendar);
-    }
 
     // get a chatting history
     public void getHistory() {
-        server.receiveMsgToYourself(this, prefix + "Enter the name of the user with whom you want to see the chatting history");
+        sendMsgToYourself(this, getSystemXml("Enter the name of the user with whom you want to see the chatting history"));
         String to = null;
         try {
-            to = in.readLine();
+            to = server.parseMsgBody(in.readLine());
         } catch (IOException ex) {
             log.error("Message reception error", ex);
         }
-        List<Message> tempArr = server.getChattingHistory(this, to);
+        List<Command> tempArr = server.getChattingHistory(this, to);
         if(tempArr.isEmpty()) {
-            server.receiveMsgToYourself(this,  prefix + "Chatting history is empty");
+            sendMsgToYourself(this, getSystemXml("Chatting history is empty"));
         } else {
             for (int i = 0; i < tempArr.size(); i++) {
                 this.sendXmlTo(tempArr.get(i));
@@ -213,34 +179,6 @@ public class Connection implements Runnable {
         }
     }
 
-    // send xml message
-    public void sendXmlTo(Message message) {
-        try {
-            StringWriter stringWriter = new StringWriter();
-            jaxbParser = ParserProvider.newJaxbParser();
-            jaxbParser.saveObject(stringWriter, message);
-            out.write(stringWriter.toString());
-            out.newLine();
-            out.flush();
-        } catch (IOException ex) {
-            log.error("Error sending message", ex);
-        } catch (JAXBException ex) {
-            log.error("Marshalling error", ex);
-        } catch (SAXException ex) {
-            log.error("Error parser initialization", ex);
-        }
-    }
-
-    // send a string message
-    public void sendMsg(String msg) {
-        try {
-            out.write(msg + "\r\n");
-            out.flush();
-        } catch (IOException ex) {
-            log.error("Error sending message", ex);
-        }
-
-    }
 
     // client exits chat
     public void close() {
@@ -260,19 +198,19 @@ public class Connection implements Runnable {
     public void onSetup() throws IOException {
         in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
         out = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream()));
-        stringReader = new StringReader(in.readLine());
+        stringReader = new StringReader("");
         prefix = server.getPrefix();
     }
     public void setStatus() {
-        server.receiveMsgToYourself(this, prefix + "Enter status:");
+        sendMsgToYourself(this, getSystemXml("Enter status:"));
         String status = null;
         try {
-            status = in.readLine();
+            status = server.parseMsgBody(in.readLine());
         } catch (IOException ex) {
             log.error("Message reception error", ex);
         }
         this.status = status;
-        server.receiveMsgToYourself(this, prefix + "Your new status: " + this.getStatus());
+        sendMsgToYourself(this, getSystemXml("Your new status: " + this.getStatus()));
     }
 
     public String getStatus() {

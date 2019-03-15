@@ -34,6 +34,16 @@ public class JaxbParser implements Parser {
         return object;
     }
 
+    public Object getObject(File in, Class c) throws JAXBException {
+
+        JAXBContext context = JAXBContext.newInstance(c);
+        Unmarshaller unmarshaller = context.createUnmarshaller();
+        unmarshaller.setSchema(msgSchema);
+        Object object = unmarshaller.unmarshal(in);
+
+        return object;
+    }
+
     public void saveObject(File file, Object o) throws JAXBException {
 
         JAXBContext context = JAXBContext.newInstance(o.getClass());

@@ -1,14 +1,20 @@
 package server.release;
 
 import org.apache.log4j.Logger;
+import org.xml.sax.SAXException;
+import utils.factory.ParserProvider;
 import utils.message.Message;
-import utils.message.impl.MessageXml;
 import org.apache.commons.codec.digest.DigestUtils;
 import server.Server;
 import server.serverUtils.CommandList;
 import server.serverEntities.Connection;
 import server.serverEntities.Registration;
+import utils.message.impl.Command;
+import utils.message.impl.Details;
+import utils.message.impl.MessageXml;
+import utils.parser.impl.JaxbParser;
 
+import javax.xml.bind.JAXBException;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -29,7 +35,7 @@ public class TcpServer implements Server {
     // server command list
     private static CommandList commandList;
     // user correspondence history
-    private static List<Message> chattingHistory;
+    private static List<Command> chattingHistory;
     // client socket
     private Socket clientSocket = null;
     // server socket
@@ -77,8 +83,9 @@ public class TcpServer implements Server {
         }
         catch (IOException ex) {
             log.error("Server error", ex);
-        }
-        finally {
+        } catch (SAXException e) {
+            e.printStackTrace();
+        } finally {
             executorService.shutdownNow();
             try {
                 // закрываем подключение
@@ -93,12 +100,12 @@ public class TcpServer implements Server {
     }
 
     // getting chatting history
-    public List<Message> getChattingHistory(Connection connection, String to) {
-        List<Message> tempArr = new ArrayList<>();
-        for(Message msg : chattingHistory) {
-            if((connection.getLogin().equals(msg.getFrom()) || connection.getLogin().equals(msg.getTo()))
-                    && (msg.getTo().equals(to) || msg.getFrom().equals(to))) {
-                tempArr.add(msg);
+    public List<Command> getChattingHistory(Connection connection, String to) {
+        List<Command> tempArr = new ArrayList<>();
+        for(Command cmd : chattingHistory) {
+            if((connection.getLogin().equals(cmd.getDetails().getMessage().getFrom()) || connection.getLogin().equals(cmd.getDetails().getMessage().getTo()))
+                    && (cmd.getDetails().getMessage().getTo().equals(to) || cmd.getDetails().getMessage().getFrom().equals(to))) {
+                tempArr.add(cmd);
             }
         }
         return tempArr;
@@ -107,11 +114,11 @@ public class TcpServer implements Server {
     // add user to friend list
     public void addFriendForMe(String login, Connection connection) {
         if(connection.getLogin().equals(login)) {
-            connection.sendMsg(prefix + "You can’t add yourself");
+            connection.sendMsg(getSystemXml("You can’t add yourself"));
         } else if(regUsers.containsKey(login)) {
             connection.getFriendsList().add(regUsers.get(login));
-            connection.sendMsg(prefix + "User named " + login.toUpperCase() + " has been added to your friends list");
-        } else connection.sendMsg(prefix + "User not found");
+            connection.sendMsg(getSystemXml("User named " + login.toUpperCase() + " has been added to your friends list"));
+        } else connection.sendMsg(getSystemXml("User not found"));
     }
 
     // string encryption
@@ -122,13 +129,10 @@ public class TcpServer implements Server {
 
     // get a list of server commands
     public String getCommands() {
-        return "List of available commands:\n" + commandList.toString();
+        return "List of available commands:" + commandList.toString();
     }
 
-    // sending xml to a specific user
-    public void receiveMsgToYourself(Connection con, String msg) {
-        con.sendMsg(msg);
-    }
+
 
     // get user from the list of registered clients
     public Connection getCon(String login) {
@@ -142,24 +146,66 @@ public class TcpServer implements Server {
         }
     }
 
+    // sending xml to a specific user
+    public void receiveMsgToYourself(Connection con, String s) {
+        con.sendMsg(s);
+    }
+
     // send xml to all users
-    public void sendXmlMsgToAllClients(MessageXml message) {
+    public void sendXmlMsgToAllClients(Command command) {
         for (Map.Entry<String, Connection> entry : regUsers.entrySet()) {
-            entry.getValue().sendXmlTo(message);
+            entry.getValue().sendXmlTo(command);
         }
     }
 
+    public String getSystemXml(String message)  {
+
+        StringWriter stringWriter = new StringWriter();
+        Command command = new Command();
+        Details details = new Details();
+        MessageXml messageXml = new MessageXml();
+        command.setCode(777);
+        messageXml.setFrom("[System]");
+        messageXml.setBody(message);
+        details.setMessage(messageXml);
+        command.setDetails(details);
+        try {
+            JaxbParser jaxbParser = ParserProvider.newJaxbParser();
+            jaxbParser.saveObject(stringWriter, command);
+        } catch (JAXBException e) {
+            e.printStackTrace();
+        } catch (SAXException e) {
+            e.printStackTrace();
+        }
+        return stringWriter.toString();
+    }
+
+    public Command parseMsg(String raw) {
+        Command command = null;
+        StringReader stringReader = new StringReader(raw);
+        try {
+            JaxbParser jaxbParser = ParserProvider.newJaxbParser();
+            command = (Command) jaxbParser.getObject(stringReader, Command.class);
+        }catch (JAXBException e) {
+            e.printStackTrace();
+        } catch (SAXException e) {
+            e.printStackTrace();
+        }
+        return command;
+    }
+
+
     // send xml to a specific user
-    public void sendXmlMsgToSpecificClients(String login, MessageXml message, Connection connection) {
+    public void sendXmlMsgToSpecificClients(String login, Command command, Connection connection) {
         if(!clientsOnline.contains(regUsers.get(login))) {
             if(!regUsers.containsKey(login)) {
-                connection.sendMsg(prefix + "User named " + login.toUpperCase() + " not registered");
+                connection.sendMsg(getSystemXml("User named " + login.toUpperCase() + " not registered"));
             } else {
-                connection.sendMsg(prefix + "User named " + login.toUpperCase() + " is not online");
+                connection.sendMsg(getSystemXml("User named " + login.toUpperCase() + " is not online"));
             }
         } else {
-            regUsers.get(login).sendXmlTo(message);
-            connection.sendMsg(prefix + "Message sent");
+            regUsers.get(login).sendXmlTo(command);
+            addMsg(command);
         }
     }
 
@@ -188,8 +234,8 @@ public class TcpServer implements Server {
     }
 
     // add correspondence messages
-    public void addMsg(Message message) {
-        chattingHistory.add(message);
+    public void addMsg(Command command) {
+        chattingHistory.add(command);
     }
 
     // add user
@@ -212,7 +258,7 @@ public class TcpServer implements Server {
     public String getOnlineList() {
         String online = "";
        for(Connection con : clientsOnline) {
-           online += con.getLogin().concat(" - " + con.getStatus()).concat("\n");
+           online += con.getLogin().concat(" - " + con.getStatus()).concat("***");
        }
        return online;
     }
@@ -221,47 +267,51 @@ public class TcpServer implements Server {
         return prefix;
     }
 
+    public String parseMsgBody(String raw) {
+        Command command = parseMsg(raw);
+
+        return command.getDetails().getMessage().getBody().trim();
+    }
+
     // command execution
-    public void executeTask(String command, Connection connection) {
-        switch (command) {
-            case "/i":
-                connection.sendMsgToYourself(connection, this.toString());
+    public void executeTask(Command command, Connection connection) {
+        switch (command.getCode()) {
+            case 11: //info DONE!
+                connection.sendMsg(getSystemXml(this.toString()));
                 break;
-            case "/world":
-                connection.sendXmlMsgToAllClients();
+            case 12: //world
+
                 break;
-            case "/pm":
-                connection.sendXmlMsgToSpecificClients();
+            case 13: //pm DONE!
+                this.sendXmlMsgToSpecificClients(command.getDetails().getMessage().getTo(), command, connection);
                 break;
-            case "/add":
+            case 14: //add DONE!
                 connection.addFriend();
                 break;
-            case "/ss":
+            case 15: //ss DONE!
                 connection.setStatus();
                 break;
-            case "/ch":
+            case 16: //ch DONE!
                 connection.getHistory();
                 break;
-            case "/f":
-                connection.sendMsgToYourself(connection, connection.friendsList());
+            case 17: //f DONE!
+                connection.sendMsg(getSystemXml(connection.friendsList()));
                 break;
-            case "/o":
-                connection.sendMsgToYourself(connection, this.getOnlineList());
+            case 18: //o DONE!
+                connection.sendMsg(getSystemXml(this.getOnlineList()));
                 break;
-            case "/h":
-                connection.sendMsgToYourself(connection, this.getCommands());
+            case 19: //h DONE!
+                connection.sendMsg(getSystemXml(this.getCommands()));
                 break;
-            case "/exit":
+            case 21: //exit
                 connection.close();
                 break;
-            default:
-                connection.sendMsgToYourself(connection, prefix + "Unknown command");
         }
     }
 
     // server information
     @Override
     public String toString() {
-        return prefix + "Server:\n" + serverSocket.getInetAddress() + "//" + serverSocket.getLocalPort() + "\n";
+        return "Server:" + serverSocket.getInetAddress() + "//" + serverSocket.getLocalPort();
     }
 }

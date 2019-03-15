@@ -1,11 +1,16 @@
 package server.serverEntities;
 
 import org.apache.log4j.Logger;
+import org.xml.sax.SAXException;
 import server.release.TcpServer;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import utils.factory.ParserProvider;
+import utils.message.impl.Command;
+import utils.message.impl.Details;
+import utils.message.impl.MessageXml;
+import utils.parser.impl.JaxbParser;
+
+import javax.xml.bind.JAXBException;
+import java.io.*;
 import java.net.Socket;
 
 public class Registration implements Runnable {
@@ -21,13 +26,16 @@ public class Registration implements Runnable {
     private TcpServer server;
     // reg/login check loop flag
     private boolean regFlag = false;
+    // parser
+    private JaxbParser jaxbParser = null;
 
-    private PrintWriter out;
+    private BufferedWriter out;
     private BufferedReader in;
 
-    public Registration(Socket clientSocket, TcpServer server) {
+    public Registration(Socket clientSocket, TcpServer server) throws SAXException {
         this.clientSocket = clientSocket;
         this.server = server;
+        this.jaxbParser = ParserProvider.newJaxbParser();
         prefix = server.getPrefix();
     }
 
@@ -36,7 +44,7 @@ public class Registration implements Runnable {
         try {
 
             // initialization of i/o streams
-            out = new PrintWriter(clientSocket.getOutputStream(), true);
+            out = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream()));
             in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 
             // registration or authentication
@@ -59,12 +67,28 @@ public class Registration implements Runnable {
         }
     }
 
+    public String getSystemXml(String message)  {
+        return server.getSystemXml(message);
+    }
+
+
+    public String parseMsgBody(String raw) {
+        return server.parseMsgBody(raw);
+    }
+
+    public void sendSystemMsg(String string) throws IOException {
+        out.write(string);
+        out.newLine();
+        out.flush();
+    }
+
+
     // enter chat, perform registration or login
     public void getAccept() throws IOException {
-        out.println(prefix + "Enter login:");
-        login = in.readLine().trim();
-        out.println(prefix + "Enter password:");
-        password = in.readLine().trim();
+        sendSystemMsg(getSystemXml("Enter login:"));
+        login = parseMsgBody(in.readLine());
+        sendSystemMsg(getSystemXml("Enter password:"));
+        password = parseMsgBody(in.readLine());
 
         // if user is not registered
         if(!server.checkReg(login)) {
@@ -76,27 +100,27 @@ public class Registration implements Runnable {
             doAuthentication(login);
         } else {
             // incorrect input
-            out.println(prefix + "Wrong password");
+            sendSystemMsg(getSystemXml("Wrong password"));
         }
     }
 
     // registration check
     public void doRegistration(String login, String password) throws IOException {
-        out.println(prefix + "Confirm the password:");
-        confirmPassword = in.readLine();
+        sendSystemMsg(getSystemXml("Confirm the password:"));
+        confirmPassword = parseMsgBody(in.readLine());
         if(password.equals(confirmPassword)) {
             server.addRegUser(login, password);
-            out.println(prefix = "You, " + login + ", are registered. Press 'Enter' to enter chat");
+            sendSystemMsg(getSystemXml("You, " + login + ", are registered. Welcome to our chat!"));
             // registration has passed
             regFlag = true;
         } else {
-            out.println(prefix + "Passwords do not match");
+            sendSystemMsg(getSystemXml("Passwords do not match"));
         }
     }
 
     // authentication check
-    public void doAuthentication(String login) {
-        out.println(prefix + "You, " + login + ", are joined. Press 'Enter' to enter chat");
+    public void doAuthentication(String login) throws IOException {
+        sendSystemMsg(getSystemXml("You, " + login + ", are joined. Welcome to our chat!"));
         // authentication has passed
         regFlag = true;
     }

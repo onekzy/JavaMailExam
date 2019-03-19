@@ -4,18 +4,12 @@ import org.apache.log4j.Logger;
 import org.xml.sax.SAXException;
 import server.release.TcpServer;
 import utils.factory.ParserProvider;
-import utils.message.impl.Command;
-import utils.message.impl.Details;
-import utils.message.impl.MessageXml;
 import utils.parser.impl.JaxbParser;
 
-import javax.xml.bind.JAXBException;
 import java.io.*;
 import java.net.Socket;
 
 public class Registration implements Runnable {
-    // server prefix
-    private String prefix;
     // initialization of logger
     private static final Logger log = Logger.getLogger(Registration.class);
     private String login;
@@ -36,7 +30,7 @@ public class Registration implements Runnable {
         this.clientSocket = clientSocket;
         this.server = server;
         this.jaxbParser = ParserProvider.newJaxbParser();
-        prefix = server.getPrefix();
+
     }
 
     @Override

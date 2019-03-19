@@ -1,20 +1,13 @@
 package server.serverEntities;
 
 import org.apache.log4j.Logger;
-import utils.message.Message;
 import server.release.TcpServer;
 import org.xml.sax.SAXException;
 import utils.message.impl.Command;
-import utils.message.impl.Details;
-import utils.message.impl.MessageXml;
 import utils.parser.impl.JaxbParser;
-import utils.factory.MessageFactory;
 import utils.factory.ParserProvider;
 
 import javax.xml.bind.JAXBException;
-import javax.xml.datatype.DatatypeConfigurationException;
-import javax.xml.datatype.DatatypeFactory;
-import javax.xml.datatype.XMLGregorianCalendar;
 import java.io.*;
 import java.net.Socket;
 import java.util.*;
@@ -64,14 +57,16 @@ public class Connection implements Runnable {
             }
 
             while (true) {
-                String line = in.readLine();
-                Command command = parseMsg(line);
-                if(command.getCode() == 1) {
-                    server.sendXmlMsgToAllClients(command);
-                } else if(command.getCode() == 000) {
-                    sendMsgToYourself(this, getSystemXml("Unknown command"));
-                } else {
-                    server.executeTask(command, this);
+                if(!clientSocket.isClosed()) {
+                    String line = in.readLine();
+                    Command command = parseMsg(line);
+                    if (command.getCode() == 1) {
+                        server.sendXmlMsgToAllClients(command);
+                    } else if (command.getCode() == 000) {
+                        sendMsgToYourself(this, getSystemXml("Unknown command"));
+                    } else {
+                        server.executeTask(command, this);
+                    }
                 }
         }
     } catch (IOException ex) {
@@ -116,21 +111,10 @@ public class Connection implements Runnable {
             out.newLine();
             out.flush();
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("Reception error", e);
         }
 
     }
-
-    // add user to friend list
-    public void addFriend() {
-        sendMsgToYourself(this, getSystemXml("Enter the login name of the user who will be added to the friend list"));
-        try {
-            server.addFriendForMe(server.parseMsgBody(in.readLine()), this);
-        } catch (IOException ex) {
-            log.error("Message reception error", ex);
-        }
-    }
-
 
 
     // send a string message to all users
@@ -145,12 +129,12 @@ public class Connection implements Runnable {
 
     // get a friend list
     public String friendsList(){
-        String line = "";
+        String line = "Your friends";
         Iterator<Connection> iterator = friends.iterator();
         if(!friends.isEmpty()) {
             while (iterator.hasNext()) {
                 Connection connection = iterator.next();
-                line += connection.login.concat(" - " + connection.getStatus()).concat("***");
+                line += connection.login.concat(" - " + connection.getStatus()).concat("@");
             }
         } else {
             line = "No friends";
@@ -161,14 +145,8 @@ public class Connection implements Runnable {
 
 
     // get a chatting history
-    public void getHistory() {
-        sendMsgToYourself(this, getSystemXml("Enter the name of the user with whom you want to see the chatting history"));
-        String to = null;
-        try {
-            to = server.parseMsgBody(in.readLine());
-        } catch (IOException ex) {
-            log.error("Message reception error", ex);
-        }
+    public void getHistory(String login) {
+        String to = login;
         List<Command> tempArr = server.getChattingHistory(this, to);
         if(tempArr.isEmpty()) {
             sendMsgToYourself(this, getSystemXml("Chatting history is empty"));
@@ -186,7 +164,7 @@ public class Connection implements Runnable {
         server.removeClient(this);
         this.status = "Offline";
         decrementClientsCount();
-        server.sendMsgToAllClients(prefix + "Clients in chat = " + clients_count);
+        server.sendMsgToAllClients(getSystemXml("Clients in chat = " + clients_count));
         try {
             clientSocket.close();
         } catch (IOException ex) {
@@ -201,15 +179,8 @@ public class Connection implements Runnable {
         stringReader = new StringReader("");
         prefix = server.getPrefix();
     }
-    public void setStatus() {
-        sendMsgToYourself(this, getSystemXml("Enter status:"));
-        String status = null;
-        try {
-            status = server.parseMsgBody(in.readLine());
-        } catch (IOException ex) {
-            log.error("Message reception error", ex);
-        }
-        this.status = status;
+    public void setStatus(String newStatus) {
+        this.status = newStatus;
         sendMsgToYourself(this, getSystemXml("Your new status: " + this.getStatus()));
     }
 

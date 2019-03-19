@@ -3,7 +3,6 @@ package server.release;
 import org.apache.log4j.Logger;
 import org.xml.sax.SAXException;
 import utils.factory.ParserProvider;
-import utils.message.Message;
 import org.apache.commons.codec.digest.DigestUtils;
 import server.Server;
 import server.serverUtils.CommandList;
@@ -84,11 +83,11 @@ public class TcpServer implements Server {
         catch (IOException ex) {
             log.error("Server error", ex);
         } catch (SAXException e) {
-            e.printStackTrace();
+            log.error("Parser error", e);
         } finally {
             executorService.shutdownNow();
             try {
-                // закрываем подключение
+                // close connection
                 clientSocket.close();
                 log.info("Server stopped");
                 serverSocket.close();
@@ -129,7 +128,7 @@ public class TcpServer implements Server {
 
     // get a list of server commands
     public String getCommands() {
-        return "List of available commands:" + commandList.toString();
+        return "List of available commands:@" + commandList.toString();
     }
 
 
@@ -165,7 +164,7 @@ public class TcpServer implements Server {
         Details details = new Details();
         MessageXml messageXml = new MessageXml();
         command.setCode(777);
-        messageXml.setFrom("[System]");
+        messageXml.setFrom("[System]:");
         messageXml.setBody(message);
         details.setMessage(messageXml);
         command.setDetails(details);
@@ -173,9 +172,9 @@ public class TcpServer implements Server {
             JaxbParser jaxbParser = ParserProvider.newJaxbParser();
             jaxbParser.saveObject(stringWriter, command);
         } catch (JAXBException e) {
-            e.printStackTrace();
+            log.error("Marshalling error", e);
         } catch (SAXException e) {
-            e.printStackTrace();
+            log.error("Parser error", e);
         }
         return stringWriter.toString();
     }
@@ -187,9 +186,9 @@ public class TcpServer implements Server {
             JaxbParser jaxbParser = ParserProvider.newJaxbParser();
             command = (Command) jaxbParser.getObject(stringReader, Command.class);
         }catch (JAXBException e) {
-            e.printStackTrace();
+            log.error("Marshalling error", e);
         } catch (SAXException e) {
-            e.printStackTrace();
+            log.error("Parser error", e);
         }
         return command;
     }
@@ -256,9 +255,9 @@ public class TcpServer implements Server {
 
     // get list online
     public String getOnlineList() {
-        String online = "";
+        String online = "Users online:@";
        for(Connection con : clientsOnline) {
-           online += con.getLogin().concat(" - " + con.getStatus()).concat("***");
+           online += con.getLogin().concat(" - " + con.getStatus()).concat("@");
        }
        return online;
     }
@@ -279,20 +278,17 @@ public class TcpServer implements Server {
             case 11: //info DONE!
                 connection.sendMsg(getSystemXml(this.toString()));
                 break;
-            case 12: //world
-
-                break;
             case 13: //pm DONE!
                 this.sendXmlMsgToSpecificClients(command.getDetails().getMessage().getTo(), command, connection);
                 break;
             case 14: //add DONE!
-                connection.addFriend();
+                this.addFriendForMe(command.getDetails().getMessage().getTo(), connection);
                 break;
             case 15: //ss DONE!
-                connection.setStatus();
+                connection.setStatus(command.getDetails().getMessage().getTo());
                 break;
             case 16: //ch DONE!
-                connection.getHistory();
+                connection.getHistory(command.getDetails().getMessage().getTo());
                 break;
             case 17: //f DONE!
                 connection.sendMsg(getSystemXml(connection.friendsList()));
@@ -306,6 +302,8 @@ public class TcpServer implements Server {
             case 21: //exit
                 connection.close();
                 break;
+            default:
+                System.out.println("Mode error");
         }
     }
 

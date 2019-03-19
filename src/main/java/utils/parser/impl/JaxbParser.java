@@ -9,20 +9,25 @@ import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
 import javax.xml.bind.Marshaller;
 import javax.xml.bind.Unmarshaller;
+import javax.xml.transform.stream.StreamSource;
 import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
-import java.io.File;
-import java.io.OutputStream;
-import java.io.Reader;
-import java.io.Writer;
+import java.io.*;
+import java.net.URL;
 
 public class JaxbParser implements Parser {
-    String xsdFile = "src\\main\\resources\\schemas\\message.xsd";
+
+    ClassLoader classLoader = getClass().getClassLoader();
+    InputStream schemaStream = classLoader.getResourceAsStream("schemas/message.xsd");
+    StreamSource schemaSource = new StreamSource(schemaStream);
+
     SchemaFactory sf = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
-    Schema msgSchema = sf.newSchema(new File(xsdFile));
+    Schema msgSchema = sf.newSchema(schemaSource);
 
     public JaxbParser() throws SAXException {
     }
+
+
 
     public Object getObject(Reader in, Class c) throws JAXBException {
 
